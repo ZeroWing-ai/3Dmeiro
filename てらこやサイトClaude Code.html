@@ -531,14 +531,14 @@
                     <span>てらこや</span>
                 </div>
                 <!-- プロフィールアイコン -->
-                <div id="profile-icon" style="display: none; position: absolute; top: 15px; right: 15px; z-index: 1002;">
+                <div id="profile-icon" style="position: absolute; top: 15px; right: 15px; z-index: 1002;">
                     <button onclick="toggleProfileMenu()" style="width: 45px; height: 45px; border-radius: 50%; background: linear-gradient(135deg, #74b9ff, #0984e3); color: white; border: none; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 3px 10px rgba(0,0,0,0.2); overflow: hidden; position: relative;" id="profile-avatar-btn">
                         <!-- プロフィール画像またはユーザーの最初の文字 -->
                         <img id="profile-avatar-img" style="width: 100%; height: 100%; object-fit: cover; display: none;">
-                        <span id="profile-avatar-text"></span>
+                        <span id="profile-avatar-text">👤</span>
                     </button>
-                    <!-- プロフィールドロップダウンメニュー -->
-                    <div id="profile-dropdown" style="display: none; position: absolute; top: 55px; right: 0; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 1rem; min-width: 200px; z-index: 1001;">
+                    <!-- ログイン済みユーザー用ドロップダウンメニュー -->
+                    <div id="profile-dropdown-logged-in" style="display: none; position: absolute; top: 55px; right: 0; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 1rem; min-width: 200px; z-index: 1001;">
                         <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee; margin-bottom: 0.5rem;">
                             <div style="font-weight: 600; color: #2d3436;" id="dropdown-username">ユーザー名</div>
                             <div style="font-size: 0.8rem; color: #636e72;" id="dropdown-usertype">お立場</div>
@@ -549,6 +549,21 @@
                             </button>
                             <button onclick="logout()" style="background: none; border: none; text-align: left; padding: 0.7rem; border-radius: 8px; cursor: pointer; transition: background 0.2s; color: #e17055; font-weight: 500;" onmouseover="this.style.background='#ffeaa7'" onmouseout="this.style.background='none'">
                                 🚪 ログアウト
+                            </button>
+                        </div>
+                    </div>
+                    <!-- ログアウト状態ユーザー用ドロップダウンメニュー -->
+                    <div id="profile-dropdown-logged-out" style="display: none; position: absolute; top: 55px; right: 0; background: white; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); padding: 1rem; min-width: 200px; z-index: 1001;">
+                        <div style="padding: 0.5rem 0; border-bottom: 1px solid #eee; margin-bottom: 0.5rem; text-align: center;">
+                            <div style="font-weight: 600; color: #2d3436;">ようこそ！</div>
+                            <div style="font-size: 0.8rem; color: #636e72;">ログインまたは登録してください</div>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <button onclick="showSection('register')" style="background: none; border: none; text-align: left; padding: 0.7rem; border-radius: 8px; cursor: pointer; transition: background 0.2s; color: #00b894; font-weight: 500;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='none'">
+                                📝 会員サービス
+                            </button>
+                            <button onclick="handleMypageClick()" style="background: none; border: none; text-align: left; padding: 0.7rem; border-radius: 8px; cursor: pointer; transition: background 0.2s; color: #2d3436; font-weight: 500;" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='none'">
+                                👤 マイページ
                             </button>
                         </div>
                     </div>
@@ -568,7 +583,7 @@
                     <li><a href="#" onclick="showSection('events')">年間行事</a></li>
                     <li><a href="#" onclick="showSection('news')">お知らせ</a></li>
                     <li><a href="#" onclick="showSection('visit')">見学について</a></li>
-                    <li><a href="#" onclick="showSection('register')">ユーザー登録</a></li>
+                    <li><a href="#" onclick="showSection('register')">会員サービス</a></li>
                     <li><a href="#" onclick="showSection('blog')">ブログ</a></li>
                     <li><a href="#" onclick="showSection('game')">ゲーム</a></li>
                     <li><a href="#" onclick="showSection('access')">アクセス情報</a></li>
@@ -1089,13 +1104,62 @@
             </div>
         </section>
 
-        <!-- ユーザー登録 -->
+        <!-- 会員サービス -->
         <section id="register" class="section">
             <div class="container">
                 <div class="section-card">
-                    <h2 class="section-title">👤 ユーザー登録</h2>
+                    <h2 class="section-title">👤 会員サービス</h2>
+                    <p style="text-align: center; margin-bottom: 3rem; font-size: 1.2rem; color: #636e72;">
+                        てらこやの会員になって、より充実したサービスをご体験ください✨
+                    </p>
+                    
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem; max-width: 800px; margin: 0 auto;">
+                        <!-- 会員登録カード -->
+                        <div style="background: linear-gradient(135deg, #00b894, #00a085); color: white; padding: 2.5rem; border-radius: 20px; text-align: center; box-shadow: 0 8px 25px rgba(0,0,0,0.15); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📝</div>
+                            <h3 style="font-size: 1.8rem; margin-bottom: 1rem;">新規会員登録</h3>
+                            <p style="margin-bottom: 2rem; opacity: 0.9; line-height: 1.6;">
+                                てらこやの最新情報を受け取り、マイページで個人情報を管理できます。
+                            </p>
+                            <button onclick="showSection('user-registration')" style="background: rgba(255,255,255,0.2); color: white; border: 2px solid white; padding: 1rem 2rem; border-radius: 25px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; width: 100%;" onmouseover="this.style.background='white'; this.style.color='#00b894'" onmouseout="this.style.background='rgba(255,255,255,0.2)'; this.style.color='white'">
+                                今すぐ登録
+                            </button>
+                        </div>
+
+                        <!-- 会員特典カード -->
+                        <div style="background: linear-gradient(135deg, #74b9ff, #0984e3); color: white; padding: 2.5rem; border-radius: 20px; text-align: center; box-shadow: 0 8px 25px rgba(0,0,0,0.15); transition: transform 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'" onmouseout="this.style.transform='translateY(0)'">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">⭐</div>
+                            <h3 style="font-size: 1.8rem; margin-bottom: 1rem;">会員特典</h3>
+                            <ul style="text-align: left; margin-bottom: 2rem; opacity: 0.9; line-height: 1.8;">
+                                <li style="margin-bottom: 0.5rem;">📧 最新情報の優先配信</li>
+                                <li style="margin-bottom: 0.5rem;">👤 個人マイページ</li>
+                                <li style="margin-bottom: 0.5rem;">📝 プロフィール管理</li>
+                                <li style="margin-bottom: 0.5rem;">🎭 イベント優先予約</li>
+                            </ul>
+                            <div style="background: rgba(255,255,255,0.2); padding: 1rem; border-radius: 15px; font-weight: 600;">
+                                登録は無料です！
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ログインリンク -->
+                    <div style="text-align: center; margin-top: 3rem;">
+                        <p style="color: #636e72; margin-bottom: 1rem;">すでにアカウントをお持ちの方</p>
+                        <button onclick="showSection('user-login')" style="background: none; color: #74b9ff; border: 2px solid #74b9ff; padding: 0.8rem 2rem; border-radius: 25px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;" onmouseover="this.style.background='#74b9ff'; this.style.color='white'" onmouseout="this.style.background='none'; this.style.color='#74b9ff'">
+                            ログインはこちら
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ユーザー登録ページ -->
+        <section id="user-registration" class="section" style="display: none;">
+            <div class="container">
+                <div class="section-card">
+                    <h2 class="section-title">📝 新規会員登録</h2>
                     <p style="text-align: center; margin-bottom: 2rem; font-size: 1.2rem; color: #636e72;">
-                        てらこやの最新情報を受け取るために、ユーザー登録をお願いします✨
+                        以下の情報を入力して、てらこやの会員登録を完了してください
                     </p>
                     
                     <div style="max-width: 600px; margin: 0 auto;">
@@ -1149,6 +1213,55 @@
                                 <strong>注意:</strong> 登録いただいた情報は、てらこやからの連絡にのみ使用いたします。<br>
                                 個人情報の取り扱いについて、ご不明な点がございましたらお気軽にお問い合わせください。
                             </p>
+                            <div style="margin-top: 1.5rem;">
+                                <button onclick="showSection('register')" style="background: none; color: #636e72; border: none; text-decoration: underline; cursor: pointer; font-size: 0.9rem;">
+                                    ← 会員サービスに戻る
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ユーザーログインページ -->
+        <section id="user-login" class="section" style="display: none;">
+            <div class="container">
+                <div class="section-card">
+                    <h2 class="section-title">🔐 ログイン</h2>
+                    <p style="text-align: center; margin-bottom: 2rem; font-size: 1.2rem; color: #636e72;">
+                        登録済みのユーザー名を入力してログインしてください
+                    </p>
+                    
+                    <div style="max-width: 500px; margin: 0 auto;">
+                        <form id="user-login-form" style="background: #f8f9fa; padding: 2rem; border-radius: 15px; border-left: 5px solid #74b9ff;">
+                            <div style="margin-bottom: 2rem;">
+                                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #2d3436;">
+                                    ユーザー名 <span style="color: #e17055;">*</span>
+                                </label>
+                                <input type="text" id="login-username" placeholder="登録したユーザー名を入力" required
+                                    style="width: 100%; padding: 1rem; border: 2px solid #ddd; border-radius: 10px; font-size: 1rem; transition: border-color 0.3s;">
+                            </div>
+                            
+                            <div style="text-align: center;">
+                                <button type="submit" style="background: linear-gradient(135deg, #74b9ff, #0984e3); color: white; border: none; padding: 1rem 3rem; border-radius: 25px; font-size: 1.1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;">
+                                    🔐 ログイン
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div style="margin-top: 2rem; text-align: center;">
+                            <p style="color: #636e72; font-size: 0.9rem; margin-bottom: 1rem;">
+                                アカウントをお持ちでない方は
+                            </p>
+                            <button onclick="showSection('user-registration')" style="background: none; color: #00b894; border: 2px solid #00b894; padding: 0.8rem 2rem; border-radius: 25px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease; margin-bottom: 1rem;" onmouseover="this.style.background='#00b894'; this.style.color='white'" onmouseout="this.style.background='none'; this.style.color='#00b894'">
+                                新規会員登録
+                            </button>
+                            <div>
+                                <button onclick="showSection('register')" style="background: none; color: #636e72; border: none; text-decoration: underline; cursor: pointer; font-size: 0.9rem;">
+                                    ← 会員サービスに戻る
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1932,6 +2045,16 @@
             loadBlogData(); // ブログデータを読み込み
             incrementPageViews(); // ページ閲覧数をカウント
             checkLoginStatus(); // ログイン状態を確認
+            updateProfileIconState(); // プロフィールアイコン状態を初期化
+            
+            // 特別処理セクションが初期表示されないように確認
+            const specialSections = ['register', 'user-registration', 'user-login', 'mypage'];
+            specialSections.forEach(sectionId => {
+                const section = document.getElementById(sectionId);
+                if (section) {
+                    section.style.display = 'none';
+                }
+            });
         });
 
         // ページ閲覧数をカウントする機能
@@ -1956,6 +2079,36 @@
         let users = JSON.parse(localStorage.getItem('terakoya_users')) || [];
         let userIdCounter = parseInt(localStorage.getItem('terakoya_user_counter')) || 1;
         let currentUser = null; // 現在ログイン中のユーザー
+
+        // ユーザーログイン機能
+        document.getElementById('user-login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('login-username').value.trim();
+            
+            if (!username) {
+                alert('ユーザー名を入力してください。');
+                return;
+            }
+
+            // ユーザーを検索
+            const user = users.find(u => u.username === username);
+            
+            if (user) {
+                currentUser = user;
+                localStorage.setItem('terakoya_current_user', JSON.stringify(currentUser));
+                
+                // マイページを表示
+                showMyPage();
+                
+                // ログイン状態を更新
+                updateHeaderProfileIcon();
+                
+                alert(`ようこそ、${user.username}さん！`);
+            } else {
+                alert('ユーザーが見つかりません。先に会員登録を行ってください。');
+            }
+        });
 
         document.getElementById('user-registration-form').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -2018,7 +2171,8 @@
             currentUser = newUser;
             localStorage.setItem('terakoya_current_user', JSON.stringify(currentUser));
             
-            // マイページに切り替え
+            // プロフィールアイコン状態を更新してマイページに切り替え
+            updateProfileIconState();
             showMyPage();
 
             // 管理者サイトの活動履歴にも記録
@@ -2059,21 +2213,45 @@
         }
 
         function showRegisterForm() {
-            // プロフィールアイコンを非表示
-            document.getElementById('profile-icon').style.display = 'none';
+            // プロフィールアイコンは常に表示（ログアウト状態のドロップダウンを使用）
+            updateProfileIconState();
         }
 
         function showMyPage() {
             if (!currentUser) return;
-            
-            // プロフィールアイコンを表示
-            document.getElementById('profile-icon').style.display = 'block';
             
             // プロフィールアイコンの情報を更新
             updateProfileIcon();
             
             // マイページセクションを表示
             showSection('mypage');
+        }
+
+        // プロフィールアイコンの状態を更新
+        function updateProfileIconState() {
+            const profileIcon = document.getElementById('profile-icon');
+            const loggedInDropdown = document.getElementById('profile-dropdown-logged-in');
+            const loggedOutDropdown = document.getElementById('profile-dropdown-logged-out');
+            
+            // アイコンは常に表示
+            profileIcon.style.display = 'block';
+            
+            if (currentUser) {
+                // ログイン済み：ユーザー情報を表示
+                updateProfileIcon();
+                loggedInDropdown.style.display = 'none';
+                loggedOutDropdown.style.display = 'none';
+            } else {
+                // ログアウト状態：デフォルトアイコンを表示
+                const avatarImg = document.getElementById('profile-avatar-img');
+                const avatarText = document.getElementById('profile-avatar-text');
+                avatarImg.style.display = 'none';
+                avatarText.style.display = 'block';
+                avatarText.textContent = '👤';
+                
+                loggedInDropdown.style.display = 'none';
+                loggedOutDropdown.style.display = 'none';
+            }
         }
 
         function updateProfileIcon() {
@@ -2151,7 +2329,7 @@
             if (confirm('ログアウトしますか？')) {
                 currentUser = null;
                 localStorage.removeItem('terakoya_current_user');
-                showRegisterForm();
+                updateProfileIconState(); // アイコン状態を更新
                 
                 // フォームをリセット
                 document.getElementById('user-registration-form').reset();
@@ -2302,12 +2480,32 @@
 
         // プロフィールドロップダウン機能
         function toggleProfileMenu() {
-            const dropdown = document.getElementById('profile-dropdown');
-            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            const loggedInDropdown = document.getElementById('profile-dropdown-logged-in');
+            const loggedOutDropdown = document.getElementById('profile-dropdown-logged-out');
+            
+            if (currentUser) {
+                // ログイン済みドロップダウンを表示
+                const isVisible = loggedInDropdown.style.display === 'block';
+                loggedInDropdown.style.display = isVisible ? 'none' : 'block';
+                loggedOutDropdown.style.display = 'none';
+            } else {
+                // ログアウト状態ドロップダウンを表示
+                const isVisible = loggedOutDropdown.style.display === 'block';
+                loggedOutDropdown.style.display = isVisible ? 'none' : 'block';
+                loggedInDropdown.style.display = 'none';
+            }
         }
 
         function closeProfileMenu() {
-            document.getElementById('profile-dropdown').style.display = 'none';
+            document.getElementById('profile-dropdown-logged-in').style.display = 'none';
+            document.getElementById('profile-dropdown-logged-out').style.display = 'none';
+        }
+
+        // ログアウト状態でマイページをクリックした時の処理
+        function handleMypageClick() {
+            alert('マイページを表示するにはログインが必要です。');
+            showSection('register');
+            closeProfileMenu();
         }
 
         // ページ内の他の場所をクリックしたときにドロップダウンを閉じる
@@ -2328,30 +2526,41 @@
 
         // セクション表示機能
         function showSection(sectionId) {
-            // マイページの場合のみ特別処理
-            if (sectionId === 'mypage') {
-                // 全てのセクションを非表示にする
-                const allSections = document.querySelectorAll('.section');
-                allSections.forEach(section => {
-                    section.style.display = 'none';
+            // 特別処理が必要なセクション
+            const specialSections = ['mypage', 'register', 'user-registration', 'user-login'];
+            
+            if (specialSections.includes(sectionId)) {
+                // 特別処理セクションの場合：特別処理セクションのみを非表示にしてから対象セクションを表示
+                specialSections.forEach(id => {
+                    const section = document.getElementById(id);
+                    if (section) {
+                        section.style.display = 'none';
+                    }
                 });
                 
-                // マイページセクションを表示
-                const mypageSection = document.getElementById('mypage');
-                if (mypageSection) {
-                    mypageSection.style.display = 'block';
-                    mypageSection.scrollIntoView({
+                // 対象セクションを表示
+                const targetSection = document.getElementById(sectionId);
+                if (targetSection) {
+                    targetSection.style.display = 'block';
+                    targetSection.scrollIntoView({
                         behavior: 'smooth',
                         block: 'start'
                     });
                     
-                    // マイページの情報を更新
-                    if (currentUser) {
+                    // マイページの場合は情報を更新
+                    if (sectionId === 'mypage' && currentUser) {
                         updateMyPageInfo();
                     }
                 }
             } else {
-                // 通常のセクション表示（従来の動作）
+                // 通常のセクション表示：特別処理セクションを非表示にしてからスクロール
+                specialSections.forEach(id => {
+                    const section = document.getElementById(id);
+                    if (section) {
+                        section.style.display = 'none';
+                    }
+                });
+                
                 const targetSection = document.getElementById(sectionId);
                 if (targetSection) {
                     targetSection.scrollIntoView({
