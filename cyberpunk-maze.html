@@ -139,9 +139,9 @@
         <!-- Top Left Panel - Stage Info -->
         <div id="topLeftPanel" class="ui-panel">
             <h3 class="glow-effect">ステージ情報</h3>
-            <p><span style="color: #00ffff;">ステージ1:</span> デジタル迷宮</p>
+            <p><span style="color: #00ffff;">レベル<span id="currentLevel">1</span>:</span> <span id="levelName">入門の迷宮</span></p>
             <p><span style="color: #00ffff;">スコア:</span> <span id="score">0</span></p>
-            <p><span style="color: #00ffff;">残りデータ:</span> <span id="collectibles">3/3</span></p>
+            <p><span style="color: #00ffff;">残りデータ:</span> <span id="collectibles">2/2</span></p>
             <div class="status-bar" style="width: 100%;"></div>
         </div>
         
@@ -202,9 +202,11 @@
         let mazeData = [];
         let gameState = {
             score: 0,
-            collectibles: 3,
-            totalCollectibles: 3,
+            level: 1,
+            collectibles: 2,
+            totalCollectibles: 2,
             isGameOver: false,
+            levelComplete: false,
             tools: {
                 'neon-scanner': 2,
                 'quantum-compass': 1,
@@ -215,9 +217,18 @@
                 'binary-key': 1,
                 'energy-drill': 1
             },
-            playerPosition: { x: -9, z: -9 },
-            goalPosition: { x: 9, z: 9 },
-            mazeSize: 21
+            playerPosition: { x: -4, z: -4 },
+            goalPosition: { x: 4, z: 4 },
+            mazeSize: 11
+        };
+        
+        // Level configurations
+        const levelConfigs = {
+            1: { size: 11, collectibles: 2, startPos: {x: -4, z: -4}, goalPos: {x: 4, z: 4}, name: "入門の迷宮" },
+            2: { size: 15, collectibles: 3, startPos: {x: -6, z: -6}, goalPos: {x: 6, z: 6}, name: "中級の試練" },
+            3: { size: 19, collectibles: 4, startPos: {x: -8, z: -8}, goalPos: {x: 8, z: 8}, name: "上級の挑戦" },
+            4: { size: 23, collectibles: 5, startPos: {x: -10, z: -10}, goalPos: {x: 10, z: 10}, name: "マスターの道" },
+            5: { size: 27, collectibles: 6, startPos: {x: -12, z: -12}, goalPos: {x: 12, z: 12}, name: "究極の迷宮" }
         };
         
         let keys = {};
@@ -295,14 +306,14 @@
             
             // Create maze walls - solid wireframe style
             const wallMaterial = new THREE.MeshBasicMaterial({
-                color: 0xff00ff,
+                color: 0x00ffff,
                 wireframe: false,
                 transparent: true,
                 opacity: 0.7
             });
             
             const wireframeMaterial = new THREE.LineBasicMaterial({
-                color: 0xff00ff,
+                color: 0x00ffff,
                 linewidth: 4
             });
             
@@ -343,28 +354,181 @@
         function createMazeData(size) {
             const maze = Array(size).fill().map(() => Array(size).fill(1));
             
-            // Simple maze generation - create paths
-            function carvePath(x, z) {
+            // More random maze generation with multiple starting points
+            function carvePath(x, z, visited = new Set()) {
+                const key = x + ',' + z;
+                if (visited.has(key)) return;
+                visited.add(key);
+                
+                // Carve current cell
                 maze[x][z] = 0;
                 
+                // Get valid directions with some randomness
                 const directions = [[0, 2], [2, 0], [0, -2], [-2, 0]];
-                directions.sort(() => Math.random() - 0.5);
+                
+                // Add diagonal directions occasionally for more complexity
+                if (Math.random() < 0.3) {
+                    directions.push([2, 2], [-2, 2], [2, -2], [-2, -2]);
+                }
+                
+                // Shuffle directions randomly
+                for (let i = directions.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [directions[i], directions[j]] = [directions[j], directions[i]];
+                }
                 
                 for (const [dx, dz] of directions) {
                     const nx = x + dx;
                     const nz = z + dz;
                     
-                    if (nx > 0 && nx < size - 1 && nz > 0 && nz < size - 1 && maze[nx][nz] === 1) {
-                        maze[x + dx/2][z + dz/2] = 0;
-                        carvePath(nx, nz);
+                    if (nx >= 1 && nx < size - 1 && nz >= 1 && nz < size - 1 && maze[nx][nz] === 1) {
+                        // Random chance to skip this path for more variety
+                        if (Math.random() < 0.8) {
+                            // Carve the connecting path
+                            for (let step = 1; step < Math.abs(dx) + Math.abs(dz); step++) {
+                                const stepX = x + Math.sign(dx) * Math.min(step, Math.abs(dx));
+                                const stepZ = z + Math.sign(dz) * Math.min(step, Math.abs(dz));
+                                if (stepX >= 0 && stepX < size && stepZ >= 0 && stepZ < size) {
+                                    maze[stepX][stepZ] = 0;
+                                }
+                            }
+                            carvePath(nx, nz, visited);
+                        }
                     }
                 }
             }
             
-            carvePath(1, 1);
+            // Start carving from multiple random points for more complexity
+            const startGridX = Math.floor((gameState.playerPosition.x + size/2));
+            const startGridZ = Math.floor((gameState.playerPosition.z + size/2));
+            const goalGridX = Math.floor((gameState.goalPosition.x + size/2));
+            const goalGridZ = Math.floor((gameState.goalPosition.z + size/2));
             
-            // Ensure goal is reachable
-            maze[19][19] = 0;
+            // Generate multiple starting points for maze generation
+            const startingPoints = [];
+            
+            // Always include player start position
+            startingPoints.push({
+                x: startGridX % 2 === 0 ? startGridX + 1 : startGridX,
+                z: startGridZ % 2 === 0 ? startGridZ + 1 : startGridZ
+            });
+            
+            // Add random starting points for more maze complexity
+            const numStartPoints = 3 + Math.floor(Math.random() * (gameState.level + 2));
+            for (let i = 0; i < numStartPoints; i++) {
+                const randomX = 1 + Math.floor(Math.random() * (size - 2));
+                const randomZ = 1 + Math.floor(Math.random() * (size - 2));
+                // Ensure odd coordinates for proper maze structure
+                const oddX = randomX % 2 === 0 ? randomX + 1 : randomX;
+                const oddZ = randomZ % 2 === 0 ? randomZ + 1 : randomZ;
+                startingPoints.push({x: oddX, z: oddZ});
+            }
+            
+            // Carve paths from all starting points
+            startingPoints.forEach(point => {
+                carvePath(point.x, point.z);
+            });
+            
+            // Create a winding path to goal using random walk
+            function createRandomPathToGoal() {
+                let currentX = startGridX;
+                let currentZ = startGridZ;
+                const visited = new Set();
+                
+                while (Math.abs(currentX - goalGridX) > 2 || Math.abs(currentZ - goalGridZ) > 2) {
+                    maze[currentX][currentZ] = 0;
+                    
+                    const possibleMoves = [];
+                    
+                    // Bias towards goal, but add randomness
+                    if (currentX < goalGridX) possibleMoves.push([1, 0], [1, 0]); // Double chance
+                    if (currentX > goalGridX) possibleMoves.push([-1, 0], [-1, 0]);
+                    if (currentZ < goalGridZ) possibleMoves.push([0, 1], [0, 1]);
+                    if (currentZ > goalGridZ) possibleMoves.push([0, -1], [0, -1]);
+                    
+                    // Add some random moves for wandering
+                    possibleMoves.push([1, 0], [-1, 0], [0, 1], [0, -1]);
+                    possibleMoves.push([1, 1], [-1, 1], [1, -1], [-1, -1]); // Diagonals
+                    
+                    const move = possibleMoves[Math.floor(Math.random() * possibleMoves.length)];
+                    const newX = currentX + move[0];
+                    const newZ = currentZ + move[1];
+                    
+                    if (newX >= 1 && newX < size - 1 && newZ >= 1 && newZ < size - 1) {
+                        currentX = newX;
+                        currentZ = newZ;
+                    }
+                    
+                    // Prevent infinite loops
+                    const key = currentX + ',' + currentZ;
+                    if (visited.has(key)) {
+                        // Jump closer to goal if stuck
+                        currentX += Math.sign(goalGridX - currentX);
+                        currentZ += Math.sign(goalGridZ - currentZ);
+                    }
+                    visited.add(key);
+                    
+                    if (visited.size > size * 2) break; // Safety limit
+                }
+                
+                // Final connection to goal
+                while (currentX !== goalGridX || currentZ !== goalGridZ) {
+                    maze[currentX][currentZ] = 0;
+                    if (currentX !== goalGridX) currentX += Math.sign(goalGridX - currentX);
+                    else if (currentZ !== goalGridZ) currentZ += Math.sign(goalGridZ - currentZ);
+                }
+            }
+            
+            createRandomPathToGoal();
+            
+            // Clear start area (3x3)
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    const clearX = startGridX + dx;
+                    const clearZ = startGridZ + dz;
+                    if (clearX >= 0 && clearX < size && clearZ >= 0 && clearZ < size) {
+                        maze[clearX][clearZ] = 0;
+                    }
+                }
+            }
+            
+            // Clear goal area (3x3)
+            for (let dx = -1; dx <= 1; dx++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    const clearX = goalGridX + dx;
+                    const clearZ = goalGridZ + dz;
+                    if (clearX >= 0 && clearX < size && clearZ >= 0 && clearZ < size) {
+                        maze[clearX][clearZ] = 0;
+                    }
+                }
+            }
+            
+            // Add extra random passages for more complexity
+            const extraPassages = 5 + Math.floor(Math.random() * (gameState.level * 3));
+            for (let i = 0; i < extraPassages; i++) {
+                if (Math.random() < 0.7) {
+                    const randomX = 1 + Math.floor(Math.random() * (size - 2));
+                    const randomZ = 1 + Math.floor(Math.random() * (size - 2));
+                    const length = 2 + Math.floor(Math.random() * 4);
+                    const direction = Math.floor(Math.random() * 4);
+                    
+                    for (let j = 0; j < length; j++) {
+                        let passageX = randomX;
+                        let passageZ = randomZ;
+                        
+                        switch(direction) {
+                            case 0: passageX += j; break;
+                            case 1: passageX -= j; break;
+                            case 2: passageZ += j; break;
+                            case 3: passageZ -= j; break;
+                        }
+                        
+                        if (passageX >= 1 && passageX < size - 1 && passageZ >= 1 && passageZ < size - 1) {
+                            maze[passageX][passageZ] = 0;
+                        }
+                    }
+                }
+            }
             
             return maze;
         }
@@ -872,47 +1036,41 @@
         
         function isValidPosition(x, z) {
             const offset = gameState.mazeSize / 2;
+            const playerRadius = 0.4;
+            const safetyMargin = 0.1;
             
-            // Convert world position to grid position
-            const gridX = Math.floor(x + offset);
-            const gridZ = Math.floor(z + offset);
+            // Check boundaries with margin
+            const worldX = x + offset;
+            const worldZ = z + offset;
             
-            // Check boundaries
-            if (gridX < 0 || gridX >= gameState.mazeSize || 
-                gridZ < 0 || gridZ >= gameState.mazeSize) {
+            if (worldX < playerRadius + safetyMargin || 
+                worldX > gameState.mazeSize - playerRadius - safetyMargin ||
+                worldZ < playerRadius + safetyMargin || 
+                worldZ > gameState.mazeSize - playerRadius - safetyMargin) {
                 return false;
             }
             
-            // Check the exact grid position the player is in
-            if (mazeData[gridX] && mazeData[gridX][gridZ] === 1) {
-                return false; // Can't move into a wall
-            }
-            
-            // Also check neighboring cells to prevent wall clipping
-            const playerRadius = 0.3;
-            const worldGridX = x + offset;
-            const worldGridZ = z + offset;
-            
-            // Check if player overlaps with any nearby walls
-            for (let dx = -1; dx <= 1; dx++) {
-                for (let dz = -1; dz <= 1; dz++) {
-                    const checkX = gridX + dx;
-                    const checkZ = gridZ + dz;
-                    
-                    if (checkX >= 0 && checkX < gameState.mazeSize && 
-                        checkZ >= 0 && checkZ < gameState.mazeSize) {
+            // Check a grid of points around the player (more comprehensive)
+            const checkResolution = 0.1;
+            for (let dx = -playerRadius; dx <= playerRadius; dx += checkResolution) {
+                for (let dz = -playerRadius; dz <= playerRadius; dz += checkResolution) {
+                    // Only check points within the circular radius
+                    if (dx * dx + dz * dz <= playerRadius * playerRadius) {
+                        const checkX = x + dx;
+                        const checkZ = z + dz;
                         
-                        if (mazeData[checkX] && mazeData[checkX][checkZ] === 1) {
-                            // Check if player is too close to this wall
-                            const wallCenterX = checkX + 0.5;
-                            const wallCenterZ = checkZ + 0.5;
-                            
-                            const distanceX = Math.abs(worldGridX - wallCenterX);
-                            const distanceZ = Math.abs(worldGridZ - wallCenterZ);
-                            
-                            if (distanceX < 0.5 + playerRadius && distanceZ < 0.5 + playerRadius) {
-                                return false;
-                            }
+                        const gridX = Math.floor(checkX + offset);
+                        const gridZ = Math.floor(checkZ + offset);
+                        
+                        // Check boundaries
+                        if (gridX < 0 || gridX >= gameState.mazeSize || 
+                            gridZ < 0 || gridZ >= gameState.mazeSize) {
+                            return false;
+                        }
+                        
+                        // Check if this point is in a wall
+                        if (mazeData[gridX] && mazeData[gridX][gridZ] === 1) {
+                            return false;
                         }
                     }
                 }
@@ -1028,7 +1186,7 @@
         }
         
         function handleMovement() {
-            const moveSpeed = gameState.boosterActive ? 0.2 : 0.1;
+            const moveSpeed = gameState.boosterActive ? 0.15 : 0.08;
             let newX = gameState.playerPosition.x;
             let newZ = gameState.playerPosition.z;
             
@@ -1043,33 +1201,82 @@
             right.crossVectors(forward, new THREE.Vector3(0, 1, 0));
             right.normalize();
             
-            // First-person movement based on camera direction
+            // First-person movement based on camera direction - more cautious approach
             if (keys['KeyW'] || keys['ArrowUp']) {
                 const testX = newX + forward.x * moveSpeed;
                 const testZ = newZ + forward.z * moveSpeed;
-                if (isValidPosition(testX, newZ)) newX = testX;
-                if (isValidPosition(newX, testZ)) newZ = testZ;
+                // Only move if the entire new position is valid
+                if (isValidPosition(testX, testZ)) {
+                    newX = testX;
+                    newZ = testZ;
+                } else {
+                    // Try moving only in X direction
+                    if (isValidPosition(testX, newZ)) newX = testX;
+                    // Try moving only in Z direction
+                    else if (isValidPosition(newX, testZ)) newZ = testZ;
+                }
             }
             if (keys['KeyS'] || keys['ArrowDown']) {
                 const testX = newX - forward.x * moveSpeed;
                 const testZ = newZ - forward.z * moveSpeed;
-                if (isValidPosition(testX, newZ)) newX = testX;
-                if (isValidPosition(newX, testZ)) newZ = testZ;
+                if (isValidPosition(testX, testZ)) {
+                    newX = testX;
+                    newZ = testZ;
+                } else {
+                    if (isValidPosition(testX, newZ)) newX = testX;
+                    else if (isValidPosition(newX, testZ)) newZ = testZ;
+                }
             }
             if (keys['KeyA'] || keys['ArrowLeft']) {
                 const testX = newX - right.x * moveSpeed;
                 const testZ = newZ - right.z * moveSpeed;
-                if (isValidPosition(testX, newZ)) newX = testX;
-                if (isValidPosition(newX, testZ)) newZ = testZ;
+                if (isValidPosition(testX, testZ)) {
+                    newX = testX;
+                    newZ = testZ;
+                } else {
+                    if (isValidPosition(testX, newZ)) newX = testX;
+                    else if (isValidPosition(newX, testZ)) newZ = testZ;
+                }
             }
             if (keys['KeyD'] || keys['ArrowRight']) {
                 const testX = newX + right.x * moveSpeed;
                 const testZ = newZ + right.z * moveSpeed;
-                if (isValidPosition(testX, newZ)) newX = testX;
-                if (isValidPosition(newX, testZ)) newZ = testZ;
+                if (isValidPosition(testX, testZ)) {
+                    newX = testX;
+                    newZ = testZ;
+                } else {
+                    if (isValidPosition(testX, newZ)) newX = testX;
+                    else if (isValidPosition(newX, testZ)) newZ = testZ;
+                }
             }
             
-            // Update player position
+            // Final safety check before updating position
+            if (!isValidPosition(newX, newZ)) {
+                // If the new position is invalid, don't move at all
+                newX = gameState.playerPosition.x;
+                newZ = gameState.playerPosition.z;
+                
+                // Emergency safety check: if current position is also invalid, reset to start
+                if (!isValidPosition(newX, newZ)) {
+                    newX = -9;
+                    newZ = -9;
+                    // If even start position is invalid, find any safe position
+                    if (!isValidPosition(newX, newZ)) {
+                        for (let x = -10; x < 10; x += 0.5) {
+                            for (let z = -10; z < 10; z += 0.5) {
+                                if (isValidPosition(x, z)) {
+                                    newX = x;
+                                    newZ = z;
+                                    break;
+                                }
+                            }
+                            if (isValidPosition(newX, newZ)) break;
+                        }
+                    }
+                }
+            }
+            
+            // Update player position only if it's confirmed safe
             gameState.playerPosition.x = newX;
             gameState.playerPosition.z = newZ;
             
@@ -1117,19 +1324,76 @@
                 Math.pow(gameState.playerPosition.z - gameState.goalPosition.z, 2)
             );
             
-            if (goalDistance < 0.8) {
+            if (goalDistance < 0.8 && !gameState.levelComplete) {
                 // Player reached the goal
+                gameState.levelComplete = true;
                 gameState.score += 1000;
                 updateUI();
                 
                 // Create victory effect
                 createVictoryEffect();
                 
-                // Show victory message
+                // Show level complete message
                 setTimeout(() => {
-                    alert('ミッション完了！\nスコア: ' + gameState.score);
+                    showLevelComplete();
                 }, 500);
             }
+        }
+        
+        function showLevelComplete() {
+            const config = levelConfigs[gameState.level];
+            const isLastLevel = !levelConfigs[gameState.level + 1];
+            
+            const overlay = document.createElement('div');
+            overlay.id = 'levelCompleteOverlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            overlay.style.backgroundColor = 'rgba(0, 255, 255, 0.6)';
+            overlay.style.display = 'flex';
+            overlay.style.flexDirection = 'column';
+            overlay.style.justifyContent = 'center';
+            overlay.style.alignItems = 'center';
+            overlay.style.zIndex = '1000';
+            overlay.style.fontFamily = 'Orbitron, monospace';
+            overlay.style.color = '#000';
+            overlay.style.textAlign = 'center';
+            
+            const nextLevelText = isLastLevel ? '全レベルクリア！' : `レベル${gameState.level + 1}へ進む`;
+            const buttonText = isLastLevel ? '最初からプレイ' : '次のレベル';
+            
+            overlay.innerHTML = `
+                <h1 style="font-size: 3rem; margin-bottom: 1rem; text-shadow: 0 0 20px #00ffff;">レベル${gameState.level}クリア！</h1>
+                <h2 style="font-size: 1.5rem; margin-bottom: 1rem;">${config.name}</h2>
+                <p style="font-size: 1.2rem; margin-bottom: 1rem;">スコア: ${gameState.score}</p>
+                <p style="font-size: 1rem; margin-bottom: 2rem;">ボーナス: ${1000 * gameState.level}pt</p>
+                <button id="nextLevelBtn" style="
+                    padding: 15px 30px;
+                    font-size: 1.2rem;
+                    font-family: 'Orbitron', monospace;
+                    background: linear-gradient(45deg, #00ffff, #0080ff);
+                    color: black;
+                    border: none;
+                    border-radius: 10px;
+                    cursor: pointer;
+                    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+                    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+                ">${buttonText}</button>
+            `;
+            
+            document.body.appendChild(overlay);
+            
+            document.getElementById('nextLevelBtn').addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                if (isLastLevel) {
+                    gameState.score = 0;
+                    loadLevel(1);
+                } else {
+                    nextLevel();
+                }
+            });
         }
         
         function createVictoryEffect() {
@@ -1210,6 +1474,38 @@
             
             const scale = 170 / gameState.mazeSize;
             
+            // Create canvas for drawing the maze
+            const canvas = document.createElement('canvas');
+            canvas.width = 170;
+            canvas.height = 170;
+            canvas.style.position = 'absolute';
+            canvas.style.top = '0';
+            canvas.style.left = '0';
+            miniMap.appendChild(canvas);
+            
+            const ctx = canvas.getContext('2d');
+            
+            // Draw maze walls
+            ctx.strokeStyle = '#ff00ff';
+            ctx.lineWidth = 1;
+            ctx.globalAlpha = 0.8;
+            
+            for (let x = 0; x < gameState.mazeSize; x++) {
+                for (let z = 0; z < gameState.mazeSize; z++) {
+                    if (mazeData[x] && mazeData[x][z] === 1) {
+                        const pixelX = x * scale;
+                        const pixelZ = z * scale;
+                        
+                        ctx.strokeRect(pixelX, pixelZ, scale, scale);
+                    }
+                }
+            }
+            
+            // Draw outer border
+            ctx.strokeStyle = '#ff00ff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, 0, 170, 170);
+            
             // Player dot
             const playerDot = document.createElement('div');
             playerDot.style.position = 'absolute';
@@ -1220,23 +1516,45 @@
             playerDot.style.left = ((gameState.playerPosition.x + gameState.mazeSize/2) * scale - 3) + 'px';
             playerDot.style.top = ((gameState.playerPosition.z + gameState.mazeSize/2) * scale - 3) + 'px';
             playerDot.style.boxShadow = '0 0 10px #00ffff';
+            playerDot.style.zIndex = '10';
             miniMap.appendChild(playerDot);
             
+            // Collectible dots
+            scene.children.forEach((object) => {
+                if (object.userData && object.userData.type === 'collectible') {
+                    const collectibleDot = document.createElement('div');
+                    collectibleDot.style.position = 'absolute';
+                    collectibleDot.style.width = '4px';
+                    collectibleDot.style.height = '4px';
+                    collectibleDot.style.backgroundColor = '#ffff00';
+                    collectibleDot.style.borderRadius = '50%';
+                    collectibleDot.style.left = ((object.position.x + gameState.mazeSize/2) * scale - 2) + 'px';
+                    collectibleDot.style.top = ((object.position.z + gameState.mazeSize/2) * scale - 2) + 'px';
+                    collectibleDot.style.boxShadow = '0 0 8px #ffff00';
+                    collectibleDot.style.zIndex = '9';
+                    miniMap.appendChild(collectibleDot);
+                }
+            });
             
             // Goal dot
             const goalDot = document.createElement('div');
             goalDot.style.position = 'absolute';
             goalDot.style.width = '8px';
             goalDot.style.height = '8px';
-            goalDot.style.backgroundColor = '#ffffff';
+            goalDot.style.backgroundColor = '#00ff00';
             goalDot.style.borderRadius = '50%';
             goalDot.style.left = ((gameState.goalPosition.x + gameState.mazeSize/2) * scale - 4) + 'px';
             goalDot.style.top = ((gameState.goalPosition.z + gameState.mazeSize/2) * scale - 4) + 'px';
             goalDot.style.border = '1px solid #00ffff';
+            goalDot.style.boxShadow = '0 0 10px #00ff00';
+            goalDot.style.zIndex = '10';
             miniMap.appendChild(goalDot);
         }
         
         function updateUI() {
+            const config = levelConfigs[gameState.level];
+            document.getElementById('currentLevel').textContent = gameState.level;
+            document.getElementById('levelName').textContent = config ? config.name : 'Unknown';
             document.getElementById('score').textContent = gameState.score;
             document.getElementById('collectibles').textContent = 
                 `${gameState.collectibles}/${gameState.totalCollectibles}`;
@@ -1271,6 +1589,121 @@
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        // Level management functions
+        function loadLevel(levelNum) {
+            const config = levelConfigs[levelNum];
+            if (!config) {
+                // Game completed!
+                showGameComplete();
+                return;
+            }
+            
+            gameState.level = levelNum;
+            gameState.mazeSize = config.size;
+            gameState.collectibles = config.collectibles;
+            gameState.totalCollectibles = config.collectibles;
+            gameState.playerPosition = { ...config.startPos };
+            gameState.goalPosition = { ...config.goalPos };
+            gameState.levelComplete = false;
+            
+            // Clear existing maze
+            clearScene();
+            
+            // Generate new maze
+            generateMaze();
+            
+            // Reset player position
+            resetPlayerPosition();
+            
+            // Update UI
+            updateUI();
+        }
+        
+        function clearScene() {
+            // Remove all maze objects
+            const objectsToRemove = [];
+            scene.children.forEach(object => {
+                if (object.userData || 
+                    object.type === 'Mesh' || 
+                    object.type === 'LineSegments' ||
+                    object.geometry) {
+                    objectsToRemove.push(object);
+                }
+            });
+            objectsToRemove.forEach(object => scene.remove(object));
+        }
+        
+        function resetPlayerPosition() {
+            const config = levelConfigs[gameState.level];
+            camera.position.set(config.startPos.x, 1.6, config.startPos.z);
+            camera.rotation.set(0, 0, 0);
+            yaw = 0;
+            pitch = 0;
+            
+            if (player) {
+                player.position.set(config.startPos.x, 0.25, config.startPos.z);
+                if (player.glow) {
+                    player.glow.position.set(config.startPos.x, 0.01, config.startPos.z);
+                }
+            }
+        }
+        
+        function nextLevel() {
+            const nextLevelNum = gameState.level + 1;
+            if (levelConfigs[nextLevelNum]) {
+                // Add level completion bonus
+                gameState.score += 1000 * gameState.level;
+                loadLevel(nextLevelNum);
+            } else {
+                showGameComplete();
+            }
+        }
+        
+        function showGameComplete() {
+            const overlay = document.createElement('div');
+            overlay.id = 'gameCompleteOverlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100vw';
+            overlay.style.height = '100vh';
+            overlay.style.backgroundColor = 'rgba(0, 255, 255, 0.8)';
+            overlay.style.display = 'flex';
+            overlay.style.flexDirection = 'column';
+            overlay.style.justifyContent = 'center';
+            overlay.style.alignItems = 'center';
+            overlay.style.zIndex = '1000';
+            overlay.style.fontFamily = 'Orbitron, monospace';
+            overlay.style.color = '#000';
+            overlay.style.textAlign = 'center';
+            
+            overlay.innerHTML = `
+                <h1 style="font-size: 4rem; margin-bottom: 2rem; text-shadow: 0 0 20px #00ffff;">おめでとうございます！</h1>
+                <h2 style="font-size: 2rem; margin-bottom: 1rem;">全レベルクリア！</h2>
+                <p style="font-size: 1.2rem; margin-bottom: 2rem;">最終スコア: ${gameState.score}</p>
+                <button id="restartGameBtn" style="
+                    padding: 15px 30px;
+                    font-size: 1.2rem;
+                    font-family: 'Orbitron', monospace;
+                    background: linear-gradient(45deg, #00ffff, #0080ff);
+                    color: black;
+                    border: none;
+                    border-radius: 10px;
+                    cursor: pointer;
+                    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+                    box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+                ">最初からプレイ</button>
+            `;
+            
+            document.body.appendChild(overlay);
+            
+            document.getElementById('restartGameBtn').addEventListener('click', () => {
+                document.body.removeChild(overlay);
+                gameState.score = 0;
+                loadLevel(1);
+            });
         }
         
         // Start the game
