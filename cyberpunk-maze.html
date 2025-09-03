@@ -167,6 +167,11 @@
             cursor: pointer;
             box-shadow: 0 0 20px rgba(0, 255, 255, 0.35);
         }
+        #startOverlay .choices { display: flex; gap: 16px; margin-top: 6px; }
+        #startOverlay .start-btn.secondary {
+            background: linear-gradient(45deg, #00ffaa, #00ccff);
+            border-color: #00ffaa;
+        }
         #startOverlay .hint {
             margin-top: 6px;
             font-size: 12px;
@@ -182,9 +187,12 @@
         <!-- Start Overlay -->
         <div id="startOverlay">
             <div class="title">サイバー迷宮</div>
-            <div class="subtitle">Neon-drenched 3D Cyberpunk Maze</div>
-            <button id="startButton" class="start-btn">スタート</button>
-            <div class="hint">クリックで開始後、キャンバスをクリックするとマウスロック</div>
+            <div class="subtitle">操作方法を選んでください</div>
+            <div class="choices">
+                <button id="startKeyboard" class="start-btn">キーボード/マウス</button>
+                <button id="startController" class="start-btn secondary">ゲームコントローラー</button>
+            </div>
+            <div class="hint">キーボード選択後はキャンバスをクリックでマウスロック</div>
         </div>
         
         <!-- Top Left Panel - Stage Info -->
@@ -259,6 +267,7 @@
             totalCollectibles: 2,
             isGameOver: false,
             levelComplete: false,
+            preferredInput: null,
             tools: {
                 'neon-scanner': 2,
                 'quantum-compass': 1,
@@ -2040,11 +2049,29 @@
             });
         }
         
-        // Wait for user to press Start before initializing
-        const startBtn = document.getElementById('startButton');
+        // Wait for user to choose input method before initializing
         const startOverlay = document.getElementById('startOverlay');
-        if (startBtn && startOverlay) {
-            startBtn.addEventListener('click', () => {
+        const startKeyboard = document.getElementById('startKeyboard');
+        const startController = document.getElementById('startController');
+        const instructionsEl = document.getElementById('instructions');
+        function setInstructionsFor(mode) {
+            if (!instructionsEl) return;
+            if (mode === 'keyboard') {
+                instructionsEl.innerHTML = 'WASD: 移動 | マウス: 視点 | クリック: マウスロック | 1-8: ツール使用';
+            } else if (mode === 'gamepad') {
+                instructionsEl.innerHTML = 'Switchコントローラー: Lスティック移動 / Rスティック視点 / A=ソード / B=シールド / X=スキャナー / Y=マッパー / L=コンパス / R=ブースター / ZL=ドリル / ZR=キー';
+            }
+        }
+        if (startKeyboard && startController && startOverlay) {
+            startKeyboard.addEventListener('click', () => {
+                gameState.preferredInput = 'keyboard';
+                setInstructionsFor('keyboard');
+                startOverlay.style.display = 'none';
+                init();
+            });
+            startController.addEventListener('click', () => {
+                gameState.preferredInput = 'gamepad';
+                setInstructionsFor('gamepad');
                 startOverlay.style.display = 'none';
                 init();
             });
