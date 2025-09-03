@@ -886,8 +886,10 @@
         function updateGamepad() {
             const gp = getActiveGamepad();
             if (!gp) {
-                // Clear gamepad-driven movement keys if no pad
-                keys['KeyW'] = keys['KeyA'] = keys['KeyS'] = keys['KeyD'] = false;
+                // If player selected gamepad, ensure gamepad-driven movement is cleared
+                if (gameState.preferredInput === 'gamepad') {
+                    keys['KeyW'] = keys['KeyA'] = keys['KeyS'] = keys['KeyD'] = false;
+                }
                 return;
             }
 
