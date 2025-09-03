@@ -130,11 +130,62 @@
             font-size: 11px;
             color: #00ffff;
         }
+
+        /* Start Overlay */
+        #startOverlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            background: radial-gradient(circle at 50% 40%, rgba(0, 64, 170, 0.35), rgba(0, 0, 0, 0.9));
+            z-index: 2000;
+            text-align: center;
+        }
+        #startOverlay .title {
+            font-size: 48px;
+            color: #00ffff;
+            text-shadow: 0 0 12px #00ffff, 0 0 30px #0080ff;
+            letter-spacing: 2px;
+        }
+        #startOverlay .subtitle {
+            font-size: 16px;
+            color: #bfefff;
+            opacity: 0.9;
+        }
+        #startOverlay .start-btn {
+            margin-top: 8px;
+            padding: 14px 28px;
+            font-size: 18px;
+            font-family: 'Orbitron', monospace;
+            background: linear-gradient(45deg, #00ffff, #0080ff);
+            color: #000;
+            border: 2px solid #00ffff;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.35);
+        }
+        #startOverlay .hint {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #81f7ff;
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
+
+        <!-- Start Overlay -->
+        <div id="startOverlay">
+            <div class="title">サイバー迷宮</div>
+            <div class="subtitle">Neon-drenched 3D Cyberpunk Maze</div>
+            <button id="startButton" class="start-btn">スタート</button>
+            <div class="hint">クリックで開始後、キャンバスをクリックするとマウスロック</div>
+        </div>
         
         <!-- Top Left Panel - Stage Info -->
         <div id="topLeftPanel" class="ui-panel">
@@ -200,6 +251,7 @@
         // Game Variables
         let scene, camera, renderer, maze, player;
         let mazeData = [];
+        let mazeGroup = null; // level-specific objects container
         let gameState = {
             score: 0,
             level: 1,
@@ -233,6 +285,12 @@
         
         let keys = {};
         let particles = [];
+        // Gamepad state
+        const gamepadState = {
+            index: null,
+            connected: false,
+            prevButtons: []
+        };
         
         // First-person camera controls
         let isMouseLocked = false;
@@ -261,10 +319,7 @@
             // Add lighting
             setupLighting();
             
-            // Generate maze
-            generateMaze();
-            
-            // Create player
+            // Create player (persistent across levels)
             createPlayer();
             
             // Add event listeners
@@ -275,6 +330,9 @@
             
             // Setup mini-map
             setupMiniMap();
+
+            // Load initial level
+            loadLevel(1);
         }
         
         
@@ -303,6 +361,13 @@
         
         function generateMaze() {
             mazeData = createMazeData(gameState.mazeSize);
+
+            // Prepare group for level geometry
+            if (mazeGroup) {
+                scene.remove(mazeGroup);
+            }
+            mazeGroup = new THREE.Group();
+            scene.add(mazeGroup);
             
             // Create maze walls - solid wireframe style
             const wallMaterial = new THREE.MeshBasicMaterial({
@@ -328,13 +393,13 @@
                         wall.position.set(x + offset, 2, z + offset);
                         wall.castShadow = true;
                         wall.receiveShadow = true;
-                        scene.add(wall);
+                        mazeGroup.add(wall);
                         
                         // Add wireframe edges
                         const edges = new THREE.EdgesGeometry(wallGeometry);
                         const wireframe = new THREE.LineSegments(edges, wireframeMaterial);
                         wireframe.position.set(x + offset, 2, z + offset);
-                        scene.add(wireframe);
+                        mazeGroup.add(wireframe);
                     }
                 }
             }
@@ -344,11 +409,14 @@
             
             // Add collectibles
             addCollectibles(mazeData);
-            
-            
+
+
             // Add goal
             addGoal();
-            
+
+            // Add enemies
+            addEnemies(mazeData);
+
         }
         
         function createMazeData(size) {
@@ -545,12 +613,12 @@
             floor.rotation.x = -Math.PI / 2;
             floor.position.set(0, 0, 0);
             floor.receiveShadow = true;
-            scene.add(floor);
+            if (mazeGroup) mazeGroup.add(floor);
             
             // Grid lines
             const gridHelper = new THREE.GridHelper(gameState.mazeSize, gameState.mazeSize, 0x0080ff, 0x004080);
             gridHelper.position.set(0, 0.01, 0);
-            scene.add(gridHelper);
+            if (mazeGroup) mazeGroup.add(gridHelper);
         }
         
         function createPlayer() {
@@ -611,7 +679,7 @@
                 const collectible = new THREE.Mesh(collectibleGeometry, collectibleMaterial);
                 collectible.position.set(pos.x, 0.5, pos.z);
                 collectible.userData = { type: 'collectible' };
-                scene.add(collectible);
+                if (mazeGroup) mazeGroup.add(collectible);
                 
                 // Add rotation animation
                 collectible.rotation.x = Math.random() * Math.PI;
@@ -634,7 +702,7 @@
             const goal = new THREE.Mesh(goalGeometry, goalMaterial);
             goal.position.set(gameState.goalPosition.x, 1, gameState.goalPosition.z);
             goal.userData = { type: 'goal' };
-            scene.add(goal);
+            if (mazeGroup) mazeGroup.add(goal);
             
             // Add goal glow ring
             const ringGeometry = new THREE.RingGeometry(0.5, 0.8, 16);
@@ -647,9 +715,51 @@
             const ring = new THREE.Mesh(ringGeometry, ringMaterial);
             ring.rotation.x = -Math.PI / 2;
             ring.position.set(gameState.goalPosition.x, 0.01, gameState.goalPosition.z);
-            scene.add(ring);
+            if (mazeGroup) mazeGroup.add(ring);
             
             goal.ring = ring;
+        }
+
+        function addEnemies(mazeData) {
+            // Number of enemies scales gently with level
+            const enemyCount = Math.min(1 + Math.floor(gameState.level / 2), 3);
+            const candidates = [];
+            const size = gameState.mazeSize;
+            const offset = size / 2;
+            // Collect walkable cells away from player and goal
+            for (let x = 1; x < size - 1; x++) {
+                for (let z = 1; z < size - 1; z++) {
+                    if (mazeData[x][z] === 0) {
+                        const wx = x - offset;
+                        const wz = z - offset;
+                        const dStart = Math.hypot(wx - gameState.playerPosition.x, wz - gameState.playerPosition.z);
+                        const dGoal = Math.hypot(wx - gameState.goalPosition.x, wz - gameState.goalPosition.z);
+                        if (dStart > 5 && dGoal > 3) {
+                            candidates.push({ x, z });
+                        }
+                    }
+                }
+            }
+            for (let i = 0; i < enemyCount && candidates.length > 0; i++) {
+                const idx = Math.floor(Math.random() * candidates.length);
+                const { x, z } = candidates.splice(idx, 1)[0];
+                const wx = x - offset;
+                const wz = z - offset;
+
+                const geo = new THREE.IcosahedronGeometry(0.28, 0);
+                const mat = new THREE.MeshPhongMaterial({ color: 0xff3344, emissive: 0x330000, shininess: 80 });
+                const enemy = new THREE.Mesh(geo, mat);
+                enemy.position.set(wx, 0.28, wz);
+                enemy.castShadow = true;
+                enemy.userData = {
+                    type: 'enemy',
+                    speed: 0.04 + Math.min(0.01 * (gameState.level - 1), 0.04),
+                    state: 'patrol',
+                    target: null,
+                    cooldown: 0
+                };
+                if (mazeGroup) mazeGroup.add(enemy);
+            }
         }
         
         function addEventListeners() {
@@ -715,6 +825,116 @@
             });
             
             window.addEventListener('resize', onWindowResize);
+
+            // Gamepad connect/disconnect
+            window.addEventListener('gamepadconnected', (e) => {
+                gamepadState.index = e.gamepad.index;
+                gamepadState.connected = true;
+                gamepadState.prevButtons = (e.gamepad.buttons || []).map(b => !!b.pressed);
+                try { updateInstructionsForGamepad(true); } catch (_) {}
+            });
+            window.addEventListener('gamepaddisconnected', () => {
+                gamepadState.index = null;
+                gamepadState.connected = false;
+                gamepadState.prevButtons = [];
+                // Ensure movement keys are cleared when controller is removed
+                keys['KeyW'] = keys['KeyA'] = keys['KeyS'] = keys['KeyD'] = false;
+                try { updateInstructionsForGamepad(false); } catch (_) {}
+            });
+        }
+
+        // Append a brief controller hint to instructions
+        function updateInstructionsForGamepad(connected) {
+            const el = document.getElementById('instructions');
+            if (!el) return;
+            const id = 'pad-hint';
+            let hint = document.getElementById(id);
+            if (!hint) {
+                hint = document.createElement('div');
+                hint.id = id;
+                hint.style.marginTop = '6px';
+                hint.style.fontSize = '10px';
+                hint.style.opacity = '0.9';
+                el.appendChild(hint);
+            }
+            if (connected) {
+                hint.textContent = 'Switchコントローラー対応: Lスティック移動 / Rスティック視点 / A=ソード / B=シールド / X=スキャナー / Y=マッパー / L=コンパス / R=ブースター / ZL=ドリル / ZR=キー';
+            } else {
+                hint.textContent = 'コントローラー未接続';
+            }
+        }
+
+        function getActiveGamepad() {
+            const gps = (navigator.getGamepads && navigator.getGamepads()) || [];
+            if (gamepadState.index != null && gps[gamepadState.index]) return gps[gamepadState.index];
+            // Fallback: pick the first available
+            for (let i = 0; i < gps.length; i++) {
+                if (gps[i]) return gps[i];
+            }
+            return null;
+        }
+
+        function updateGamepad() {
+            const gp = getActiveGamepad();
+            if (!gp) {
+                // Clear gamepad-driven movement keys if no pad
+                keys['KeyW'] = keys['KeyA'] = keys['KeyS'] = keys['KeyD'] = false;
+                return;
+            }
+
+            // Axes with deadzone
+            const deadzone = 0.25;
+            const ax = (gp.axes && gp.axes[0]) || 0; // LS X
+            const ay = (gp.axes && gp.axes[1]) || 0; // LS Y
+            const rx = (gp.axes && gp.axes[2]) || 0; // RS X
+            const ry = (gp.axes && gp.axes[3]) || 0; // RS Y
+
+            // Movement via left stick + D-pad buttons
+            const dpadUp = gp.buttons && gp.buttons[12] && gp.buttons[12].pressed;
+            const dpadDown = gp.buttons && gp.buttons[13] && gp.buttons[13].pressed;
+            const dpadLeft = gp.buttons && gp.buttons[14] && gp.buttons[14].pressed;
+            const dpadRight = gp.buttons && gp.buttons[15] && gp.buttons[15].pressed;
+
+            keys['KeyW'] = (ay < -deadzone) || !!dpadUp;
+            keys['KeyS'] = (ay > deadzone) || !!dpadDown;
+            keys['KeyA'] = (ax < -deadzone) || !!dpadLeft;
+            keys['KeyD'] = (ax > deadzone) || !!dpadRight;
+
+            // Look via right stick
+            const lookDZ = 0.2;
+            const lookSpeed = 0.03;
+            let changedLook = false;
+            if (Math.abs(rx) > lookDZ) { yaw -= rx * lookSpeed; changedLook = true; }
+            if (Math.abs(ry) > lookDZ) { pitch -= ry * lookSpeed; changedLook = true; }
+            if (changedLook) {
+                pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+                camera.rotation.set(pitch, yaw, 0);
+            }
+
+            // One-shot tool triggers on button press edges
+            const buttons = gp.buttons || [];
+            const was = gamepadState.prevButtons;
+            const justPressed = (i) => (buttons[i] && buttons[i].pressed) && !(was[i]);
+
+            // Mapping (standard): 0=A,1=B,2=X,3=Y,4=LB,5=RB,6=LT,7=RT
+            const map = [
+                [2, 'neon-scanner'],      // X
+                [4, 'quantum-compass'],   // L / LB
+                [3, 'hologram-mapper'],   // Y
+                [5, 'cyber-booster'],     // R / RB
+                [0, 'digital-sword'],     // A
+                [1, 'photon-shield'],     // B
+                [6, 'energy-drill'],      // ZL / LT
+                [7, 'binary-key']         // ZR / RT
+            ];
+            for (const [idx, tool] of map) {
+                if (justPressed(idx)) {
+                    try { useTool(tool); } catch (_) {}
+                }
+            }
+
+            // Update previous buttons snapshot
+            gamepadState.prevButtons = buttons.map(b => !!b.pressed);
         }
         
         function useTool(toolName) {
@@ -856,14 +1076,17 @@
             const frontZ = Math.round(player.position.z + direction.z);
             
             // Find and remove wall at that position
-            scene.children.forEach((object) => {
-                if (object.type === 'Mesh' && object.geometry.type === 'BoxGeometry') {
-                    if (Math.round(object.position.x) === frontX && Math.round(object.position.z) === frontZ) {
-                        scene.remove(object);
-                        createWallBreakEffect(object.position);
+            if (mazeGroup) {
+                mazeGroup.traverse((object) => {
+                    if (object.type === 'Mesh' && object.geometry && object.geometry.type === 'BoxGeometry') {
+                        if (Math.round(object.position.x) === frontX && Math.round(object.position.z) === frontZ) {
+                            const pos = object.position.clone();
+                            if (object.parent) object.parent.remove(object);
+                            createWallBreakEffect(pos);
+                        }
                     }
-                }
-            });
+                });
+            }
             
             // Animate sword
             let rotation = 0;
@@ -1024,13 +1247,15 @@
                 const targetX = Math.round(player.position.x + direction.x * i);
                 const targetZ = Math.round(player.position.z + direction.z * i);
                 
-                scene.children.forEach((object) => {
-                    if (object.type === 'Mesh' && object.geometry.type === 'BoxGeometry') {
-                        if (Math.round(object.position.x) === targetX && Math.round(object.position.z) === targetZ) {
-                            scene.remove(object);
+                if (mazeGroup) {
+                    mazeGroup.traverse((object) => {
+                        if (object.type === 'Mesh' && object.geometry && object.geometry.type === 'BoxGeometry') {
+                            if (Math.round(object.position.x) === targetX && Math.round(object.position.z) === targetZ) {
+                                if (object.parent) object.parent.remove(object);
+                            }
                         }
-                    }
-                });
+                    });
+                }
             }
         }
         
@@ -1152,40 +1377,15 @@
         }
         
         function restartGame() {
-            // Reset game state
+            // Reset game state and reload current level
             gameState.isGameOver = false;
             gameState.score = 0;
-            gameState.collectibles = 3;
-            gameState.playerPosition = { x: -9, z: -9 };
-            
-            
-            // Remove all collectibles
-            const objectsToRemove = [];
-            scene.children.forEach(object => {
-                if (object.userData && object.userData.type === 'collectible') {
-                    objectsToRemove.push(object);
-                }
-            });
-            objectsToRemove.forEach(object => scene.remove(object));
-            
-            // Reset player position
-            player.position.set(-9, 0.25, -9);
-            player.glow.position.set(-9, 0.01, -9);
-            camera.position.set(-9, 1.6, -9);
-            
-            // Reset camera rotation
-            yaw = 0;
-            pitch = 0;
-            camera.rotation.set(0, 0, 0);
-            
-            // Regenerate maze elements
-            addCollectibles(mazeData);
-            
-            // Update UI
+            loadLevel(gameState.level || 1);
             updateUI();
         }
         
         function handleMovement() {
+            if (gameState.isGameOver || gameState.levelComplete) return;
             const moveSpeed = gameState.boosterActive ? 0.15 : 0.08;
             let newX = gameState.playerPosition.x;
             let newZ = gameState.playerPosition.z;
@@ -1300,22 +1500,121 @@
             // Update mini-map
             updateMiniMap();
         }
-        
-        function checkCollectibles() {
-            scene.children.forEach((object) => {
-                if (object.userData && object.userData.type === 'collectible') {
-                    const distance = player.position.distanceTo(object.position);
-                    if (distance < 0.5) {
-                        scene.remove(object);
-                        gameState.collectibles--;
-                        gameState.score += 100;
-                        updateUI();
-                        
-                        // Create collection effect
-                        createCollectionEffect(object.position);
+
+        function updateEnemies() {
+            if (!mazeGroup || gameState.isGameOver) return;
+            const size = gameState.mazeSize;
+            const offset = size / 2;
+            const playerPos = new THREE.Vector3(gameState.playerPosition.x, 0, gameState.playerPosition.z);
+            const chaseRadius = 3.5;
+
+            const hasLineOfSight = (x1, z1, x2, z2) => {
+                const steps = 24;
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps;
+                    const x = x1 + (x2 - x1) * t;
+                    const z = z1 + (z2 - z1) * t;
+                    const gx = Math.floor(x + offset);
+                    const gz = Math.floor(z + offset);
+                    if (gx < 0 || gz < 0 || gx >= size || gz >= size) return false;
+                    if (mazeData[gx] && mazeData[gx][gz] === 1) return false;
+                }
+                return true;
+            };
+
+            const neighbors = [
+                { dx: 1, dz: 0 }, { dx: -1, dz: 0 }, { dx: 0, dz: 1 }, { dx: 0, dz: -1 }
+            ];
+
+            const isOpen = (gx, gz) => gx >= 0 && gz >= 0 && gx < size && gz < size && mazeData[gx] && mazeData[gx][gz] === 0;
+
+            mazeGroup.traverse((obj) => {
+                if (!(obj.userData && obj.userData.type === 'enemy')) return;
+
+                // Collision with player
+                const dist = obj.position.distanceTo(playerPos);
+                if (dist < 0.45 && !gameState.isGameOver) {
+                    gameOver();
+                    return;
+                }
+
+                // Determine target if none or reached
+                if (!obj.userData.target || obj.position.distanceTo(obj.userData.target) < 0.05) {
+                    // Current grid cell
+                    const gx = Math.round(obj.position.x + offset);
+                    const gz = Math.round(obj.position.z + offset);
+                    // Decide chase or patrol
+                    const dToPlayer = Math.hypot(playerPos.x - obj.position.x, playerPos.z - obj.position.z);
+                    const chasing = dToPlayer < chaseRadius && hasLineOfSight(obj.position.x, obj.position.z, playerPos.x, playerPos.z);
+
+                    let next = null;
+                    if (chasing) {
+                        // Choose neighbor that minimizes distance to player
+                        let best = Infinity;
+                        neighbors.forEach(({ dx, dz }) => {
+                            const ngx = gx + dx, ngz = gz + dz;
+                            if (isOpen(ngx, ngz)) {
+                                const wx = ngx - offset, wz = ngz - offset;
+                                const d = Math.hypot(playerPos.x - wx, playerPos.z - wz);
+                                if (d < best) {
+                                    best = d; next = { x: wx, z: wz };
+                                }
+                            }
+                        });
+                    }
+                    if (!next) {
+                        // Patrol: pick a random open neighbor
+                        const open = neighbors.filter(({ dx, dz }) => isOpen(gx + dx, gz + dz));
+                        if (open.length > 0) {
+                            // 20% chance to pause (no move)
+                            if (Math.random() < 0.2) {
+                                next = { x: gx - offset, z: gz - offset };
+                            } else {
+                                const pick = open[Math.floor(Math.random() * open.length)];
+                                next = { x: (gx + pick.dx) - offset, z: (gz + pick.dz) - offset };
+                            }
+                        } else {
+                            next = { x: gx - offset, z: gz - offset };
+                        }
+                    }
+                    obj.userData.target = new THREE.Vector3(next.x, obj.position.y, next.z);
+                    obj.userData.cooldown = 8 + Math.floor(Math.random() * 8); // wait a few frames before next decision
+                }
+
+                // Move towards target
+                if (obj.userData.cooldown > 0) {
+                    obj.userData.cooldown--;
+                } else {
+                    const dir = new THREE.Vector3().subVectors(obj.userData.target, obj.position);
+                    const len = dir.length();
+                    if (len > 0.0001) {
+                        dir.normalize();
+                        const speed = obj.userData.speed || 0.04;
+                        obj.position.addScaledVector(dir, Math.min(speed, len));
+                        // Bobbing
+                        obj.position.y = 0.28 + Math.sin(Date.now() * 0.01 + obj.id) * 0.02;
                     }
                 }
             });
+        }
+        
+        function checkCollectibles() {
+            if (mazeGroup) {
+                const toRemove = [];
+                mazeGroup.traverse((object) => {
+                    if (object.userData && object.userData.type === 'collectible') {
+                        const distance = player.position.distanceTo(object.position);
+                        if (distance < 0.5) {
+                            toRemove.push(object);
+                            gameState.collectibles--;
+                            gameState.score += 100;
+                            updateUI();
+                            createCollectionEffect(object.position.clone());
+                        }
+                    }
+                });
+                toRemove.forEach(obj => obj.parent && obj.parent.remove(obj));
+            }
         }
         
         function checkGoal() {
@@ -1520,21 +1819,42 @@
             miniMap.appendChild(playerDot);
             
             // Collectible dots
-            scene.children.forEach((object) => {
-                if (object.userData && object.userData.type === 'collectible') {
-                    const collectibleDot = document.createElement('div');
-                    collectibleDot.style.position = 'absolute';
-                    collectibleDot.style.width = '4px';
-                    collectibleDot.style.height = '4px';
-                    collectibleDot.style.backgroundColor = '#ffff00';
-                    collectibleDot.style.borderRadius = '50%';
-                    collectibleDot.style.left = ((object.position.x + gameState.mazeSize/2) * scale - 2) + 'px';
-                    collectibleDot.style.top = ((object.position.z + gameState.mazeSize/2) * scale - 2) + 'px';
-                    collectibleDot.style.boxShadow = '0 0 8px #ffff00';
-                    collectibleDot.style.zIndex = '9';
-                    miniMap.appendChild(collectibleDot);
-                }
-            });
+            if (mazeGroup) {
+                mazeGroup.traverse((object) => {
+                    if (object.userData && object.userData.type === 'collectible') {
+                        const collectibleDot = document.createElement('div');
+                        collectibleDot.style.position = 'absolute';
+                        collectibleDot.style.width = '4px';
+                        collectibleDot.style.height = '4px';
+                        collectibleDot.style.backgroundColor = '#ffff00';
+                        collectibleDot.style.borderRadius = '50%';
+                        collectibleDot.style.left = ((object.position.x + gameState.mazeSize/2) * scale - 2) + 'px';
+                        collectibleDot.style.top = ((object.position.z + gameState.mazeSize/2) * scale - 2) + 'px';
+                        collectibleDot.style.boxShadow = '0 0 8px #ffff00';
+                        collectibleDot.style.zIndex = '9';
+                        miniMap.appendChild(collectibleDot);
+                    }
+                });
+            }
+
+            // Enemy dots (red)
+            if (mazeGroup) {
+                mazeGroup.traverse((object) => {
+                    if (object.userData && object.userData.type === 'enemy') {
+                        const enemyDot = document.createElement('div');
+                        enemyDot.style.position = 'absolute';
+                        enemyDot.style.width = '6px';
+                        enemyDot.style.height = '6px';
+                        enemyDot.style.backgroundColor = '#ff3333';
+                        enemyDot.style.borderRadius = '50%';
+                        enemyDot.style.left = ((object.position.x + gameState.mazeSize/2) * scale - 3) + 'px';
+                        enemyDot.style.top = ((object.position.z + gameState.mazeSize/2) * scale - 3) + 'px';
+                        enemyDot.style.boxShadow = '0 0 8px #ff3333';
+                        enemyDot.style.zIndex = '9';
+                        miniMap.appendChild(enemyDot);
+                    }
+                });
+            }
             
             // Goal dot
             const goalDot = document.createElement('div');
@@ -1562,25 +1882,33 @@
         
         function animate() {
             requestAnimationFrame(animate);
-            
+
+            // Update controller state before movement
+            updateGamepad();
+
             handleMovement();
+            updateEnemies();
             updateParticles();
             
             // Animate objects
-            scene.children.forEach((object) => {
-                if (object.userData && object.userData.type === 'collectible') {
-                    object.rotation.x += 0.01;
-                    object.rotation.y += 0.02;
-                    object.position.y = 0.5 + Math.sin(Date.now() * 0.005) * 0.1;
-                }
-                if (object.userData && object.userData.type === 'goal') {
-                    object.rotation.y += 0.005;
-                    object.material.emissive.setHex(Math.sin(Date.now() * 0.01) > 0 ? 0x444444 : 0x666666);
-                    if (object.ring) {
-                        object.ring.rotation.z += 0.01;
+            if (mazeGroup) {
+                mazeGroup.traverse((object) => {
+                    if (object.userData && object.userData.type === 'collectible') {
+                        object.rotation.x += 0.01;
+                        object.rotation.y += 0.02;
+                        object.position.y = 0.5 + Math.sin(Date.now() * 0.005) * 0.1;
                     }
-                }
-            });
+                    if (object.userData && object.userData.type === 'goal') {
+                        object.rotation.y += 0.005;
+                        if (object.material && object.material.emissive) {
+                            object.material.emissive.setHex(Math.sin(Date.now() * 0.01) > 0 ? 0x444444 : 0x666666);
+                        }
+                        if (object.ring) {
+                            object.ring.rotation.z += 0.01;
+                        }
+                    }
+                });
+            }
             
             renderer.render(scene, camera);
         }
@@ -1622,17 +1950,23 @@
         }
         
         function clearScene() {
-            // Remove all maze objects
-            const objectsToRemove = [];
-            scene.children.forEach(object => {
-                if (object.userData || 
-                    object.type === 'Mesh' || 
-                    object.type === 'LineSegments' ||
-                    object.geometry) {
-                    objectsToRemove.push(object);
-                }
-            });
-            objectsToRemove.forEach(object => scene.remove(object));
+            // Remove level-only objects
+            if (mazeGroup) {
+                mazeGroup.traverse((obj) => {
+                    if (obj.geometry) obj.geometry.dispose?.();
+                    if (obj.material) {
+                        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose?.());
+                        else obj.material.dispose?.();
+                    }
+                });
+                scene.remove(mazeGroup);
+                mazeGroup = null;
+            }
+            // Clear transient particles
+            if (particles && particles.length) {
+                particles.forEach(p => scene.remove(p));
+                particles = [];
+            }
         }
         
         function resetPlayerPosition() {
@@ -1706,8 +2040,18 @@
             });
         }
         
-        // Start the game
-        init();
+        // Wait for user to press Start before initializing
+        const startBtn = document.getElementById('startButton');
+        const startOverlay = document.getElementById('startOverlay');
+        if (startBtn && startOverlay) {
+            startBtn.addEventListener('click', () => {
+                startOverlay.style.display = 'none';
+                init();
+            });
+        } else {
+            // Fallback: if overlay missing, auto-start
+            init();
+        }
     </script>
 </body>
 </html>
